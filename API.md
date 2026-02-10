@@ -160,6 +160,10 @@ Required scopes for this CLI:
 - `read_build_logs`
 - `read_artifacts`
 
+Optional capability scopes:
+
+- `write_builds` (needed for `jobs.retry`)
+
 ### Success response
 
 ```json
@@ -176,7 +180,8 @@ Required scopes for this CLI:
     ],
     "grantedScopes": 3,
     "missingScopes": [],
-    "ready": true
+    "ready": true,
+    "warnings": []
   },
   "pagination": null,
   "data": {
@@ -199,7 +204,16 @@ Required scopes for this CLI:
       "read_build_logs",
       "read_artifacts"
     ],
-    "missingScopes": []
+    "missingScopes": [],
+    "capabilities": {
+      "jobsRetry": {
+        "requiredScopes": [
+          "write_builds"
+        ],
+        "missingScopes": [],
+        "ready": true
+      }
+    }
   },
   "error": null
 }
@@ -384,6 +398,57 @@ Use `--raw` to keep exact Buildkite payloads.
 }
 ```
 
+## `jobs.retry`
+
+Retry a failed/timed-out job.
+
+Requires `write_builds` scope.
+
+### Request
+
+```json
+{
+  "org": "acme",
+  "pipeline": "web",
+  "buildNumber": 942,
+  "jobId": "0197abcd"
+}
+```
+
+### Success response
+
+```json
+{
+  "ok": true,
+  "apiVersion": "v1",
+  "command": "jobs.retry",
+  "request": {
+    "org": "acme",
+    "pipeline": "web",
+    "buildNumber": 942,
+    "jobId": "0197abcd"
+  },
+  "summary": {
+    "retried": true,
+    "jobId": "0197efgh",
+    "state": "scheduled"
+  },
+  "pagination": null,
+  "data": {
+    "job": {
+      "id": "0197efgh",
+      "type": "script",
+      "name": "Playwright tests",
+      "stepKey": "e2e",
+      "state": "scheduled",
+      "exitStatus": null,
+      "webUrl": "https://buildkite.com/acme/web/builds/942#job-0197efgh"
+    }
+  },
+  "error": null
+}
+```
+
 ## `artifacts.list`
 
 List artifacts for a build, optionally filtered by job.
@@ -541,6 +606,7 @@ List build annotations.
 - `builds.list` -> `GET /v2/builds` or `GET /v2/organizations/{org}/builds` or `GET /v2/organizations/{org}/pipelines/{pipeline}/builds`
 - `builds.get` -> `GET /v2/organizations/{org}/pipelines/{pipeline}/builds/{number}`
 - `jobs.log.get` -> `GET /v2/organizations/{org}/pipelines/{pipeline}/builds/{number}/jobs/{job.id}/log`
+- `jobs.retry` -> `PUT /v2/organizations/{org}/pipelines/{pipeline}/builds/{number}/jobs/{job.id}/retry`
 - `artifacts.list` -> `GET /v2/organizations/{org}/pipelines/{pipeline}/builds/{number}/artifacts` or `GET /v2/organizations/{org}/pipelines/{pipeline}/builds/{number}/jobs/{job.id}/artifacts`
 - `artifacts.download` -> `GET /v2/organizations/{org}/pipelines/{pipeline}/builds/{number}/jobs/{job.id}/artifacts/{id}/download`
 - `annotations.list` -> `GET /v2/organizations/{org}/pipelines/{pipeline}/builds/{number}/annotations`
@@ -552,7 +618,6 @@ These are strong candidates for the next version:
 - `builds.create`
 - `builds.rebuild`
 - `builds.cancel`
-- `jobs.retry`
 - `jobs.unblock`
 - `jobs.env.get`
 - `pipelines.list`

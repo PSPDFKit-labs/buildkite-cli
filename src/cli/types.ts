@@ -32,6 +32,13 @@ export type JobsLogGetArgs = {
   readonly tailLines: number | null;
 };
 
+export type JobsRetryArgs = {
+  readonly org: string;
+  readonly pipeline: string;
+  readonly buildNumber: number;
+  readonly jobId: string;
+};
+
 export type ArtifactsListArgs = {
   readonly org: string;
   readonly pipeline: string;
@@ -61,6 +68,7 @@ export type ParsedCommand =
   | { readonly name: "builds.list"; readonly global: ParsedGlobalOptions; readonly args: BuildsListArgs }
   | { readonly name: "builds.get"; readonly global: ParsedGlobalOptions; readonly args: BuildsGetArgs }
   | { readonly name: "jobs.log.get"; readonly global: ParsedGlobalOptions; readonly args: JobsLogGetArgs }
+  | { readonly name: "jobs.retry"; readonly global: ParsedGlobalOptions; readonly args: JobsRetryArgs }
   | { readonly name: "artifacts.list"; readonly global: ParsedGlobalOptions; readonly args: ArtifactsListArgs }
   | {
       readonly name: "artifacts.download";

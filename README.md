@@ -7,6 +7,7 @@ A local CLI that queries Buildkite REST APIs and returns LLM-friendly JSON envel
 - List builds.
 - Get one build with job summary.
 - Fetch job logs.
+- Retry failed/timed-out jobs.
 - List artifacts.
 - Download artifacts.
 - List annotations.
@@ -70,6 +71,7 @@ bkci auth status
 bkci builds list --org ORG [--pipeline PIPELINE] [--branch BRANCH] [--state STATE]
 bkci builds get --org ORG --pipeline PIPELINE --build BUILD_NUMBER
 bkci jobs log get --org ORG --pipeline PIPELINE --build BUILD_NUMBER --job JOB_ID
+bkci jobs retry --org ORG --pipeline PIPELINE --build BUILD_NUMBER --job JOB_ID
 bkci artifacts list --org ORG --pipeline PIPELINE --build BUILD_NUMBER [--job JOB_ID]
 bkci artifacts download --org ORG --pipeline PIPELINE --build BUILD_NUMBER [--job JOB_ID] [--artifact-id ID ...] [--glob GLOB] [--out DIR]
 bkci annotations list --org ORG --pipeline PIPELINE --build BUILD_NUMBER
@@ -77,14 +79,42 @@ bkci annotations list --org ORG --pipeline PIPELINE --build BUILD_NUMBER
 
 ## Required token scopes
 
+Baseline scopes:
+
 - `read_builds`
 - `read_build_logs`
 - `read_artifacts`
 
+Additional scope for retrying jobs:
+
+- `write_builds`
+
+## Retry jobs examples
+
+Retry a job:
+
+```bash
+bkci jobs retry --org acme --pipeline web --build 942 --job 0197abcd
+```
+
+If your token is missing `write_builds`, `bkci` returns a clear error envelope (and does not retry):
+
+```json
+{
+  "ok": false,
+  "command": "jobs.retry",
+  "error": {
+    "type": "permission_error",
+    "message": "failed to retry job: token missing required scope(s): write_builds",
+    "code": "missing_scope"
+  }
+}
+```
+
 ## Notes
 
 - Use `--raw` on any command to return raw Buildkite payloads inside the envelope.
-- `bkci auth status` checks token scopes and reports missing required scopes.
+- `bkci auth status` checks token scopes, reports missing required scopes, and warns when optional capability scopes (for example `jobs.retry`) are missing.
 - `jobs log get` strips ANSI/control sequences in normalized mode for cleaner LLM output.
 - Pagination metadata is parsed from Buildkite `Link` headers for list endpoints.
 

@@ -7,6 +7,7 @@ import type {
   BuildsGetArgs,
   BuildsListArgs,
   JobsLogGetArgs,
+  JobsRetryArgs,
   ParsedCommand,
   ParsedGlobalOptions,
 } from "./types.js";
@@ -251,6 +252,54 @@ function parseJobsLogGet(tokens: Array<string>): JobsLogGetArgs {
   };
 }
 
+function parseJobsRetry(tokens: Array<string>): JobsRetryArgs {
+  let org: string | null = null;
+  let pipeline: string | null = null;
+  let buildNumber: number | null = null;
+  let jobId: string | null = null;
+
+  let index = 0;
+  while (index < tokens.length) {
+    const token = tokens[index] ?? "";
+    if (token === "--org") {
+      const next = readOptionValue(tokens, index, token);
+      org = normalizeValue(next.value);
+      index = next.nextIndex;
+      continue;
+    }
+    if (token === "--pipeline") {
+      const next = readOptionValue(tokens, index, token);
+      pipeline = normalizeValue(next.value);
+      index = next.nextIndex;
+      continue;
+    }
+    if (token === "--build") {
+      const next = readOptionValue(tokens, index, token);
+      buildNumber = parsePositiveIntegerOption(token, next.value);
+      index = next.nextIndex;
+      continue;
+    }
+    if (token === "--job") {
+      const next = readOptionValue(tokens, index, token);
+      jobId = normalizeValue(next.value);
+      index = next.nextIndex;
+      continue;
+    }
+    throw new Error(`unknown argument for jobs retry: ${token}`);
+  }
+
+  if (org === null || pipeline === null || buildNumber === null || jobId === null) {
+    throw new Error("missing required options: --org --pipeline --build --job");
+  }
+
+  return {
+    org,
+    pipeline,
+    buildNumber,
+    jobId,
+  };
+}
+
 function parseArtifactsList(tokens: Array<string>): ArtifactsListArgs {
   let org: string | null = null;
   let pipeline: string | null = null;
@@ -476,6 +525,14 @@ export function parseCliArgs(argv: Array<string>): ParsedCommand {
     };
   }
 
+  if (group === "jobs" && action === "retry") {
+    return {
+      name: "jobs.retry",
+      global: globalParsed.global,
+      args: parseJobsRetry(rest),
+    };
+  }
+
   if (group === "artifacts" && action === "list") {
     return {
       name: "artifacts.list",
@@ -509,6 +566,7 @@ export const USAGE_TEXT = `Usage:
   bkci builds list --org ORG [--pipeline PIPELINE] [--branch BRANCH] [--state STATE] [--page N] [--per-page N] [--raw]
   bkci builds get --org ORG --pipeline PIPELINE --build BUILD_NUMBER [--raw]
   bkci jobs log get --org ORG --pipeline PIPELINE --build BUILD_NUMBER --job JOB_ID [--max-bytes N] [--tail-lines N] [--raw]
+  bkci jobs retry --org ORG --pipeline PIPELINE --build BUILD_NUMBER --job JOB_ID [--raw]
   bkci artifacts list --org ORG --pipeline PIPELINE --build BUILD_NUMBER [--job JOB_ID] [--raw]
   bkci artifacts download --org ORG --pipeline PIPELINE --build BUILD_NUMBER [--job JOB_ID] (--artifact-id ID... | --artifact-ids A,B | --glob GLOB) [--out DIR] [--raw]
   bkci annotations list --org ORG --pipeline PIPELINE --build BUILD_NUMBER [--raw]

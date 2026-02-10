@@ -52,6 +52,29 @@ test("parseCliArgs parses builds list with global raw option", () => {
   });
 });
 
+test("parseCliArgs parses jobs retry", () => {
+  const parsed = parseCliArgs([
+    "jobs",
+    "retry",
+    "--org",
+    "acme",
+    "--pipeline",
+    "web",
+    "--build",
+    "17",
+    "--job",
+    "job-1",
+  ]);
+
+  assert.equal(parsed.name, "jobs.retry");
+  assert.deepEqual(parsed.args, {
+    org: "acme",
+    pipeline: "web",
+    buildNumber: 17,
+    jobId: "job-1",
+  });
+});
+
 test("parseCliArgs parses artifacts download with multiple ids", () => {
   const parsed = parseCliArgs([
     "artifacts",

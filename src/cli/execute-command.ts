@@ -1,15 +1,17 @@
+import { CliHttpError } from "../core/errors.js";
 import { globToRegex } from "../core/glob.js";
 import { transformLogContent } from "../core/logs.js";
 import { parsePagination } from "../core/pagination.js";
-import type { Pagination } from "../core/types.js";
+import type { BuildkiteJsonResponse, Pagination } from "../core/types.js";
 import type { ParsedCommand } from "./types.js";
-import type { BuildkiteJsonResponse } from "../core/types.js";
 import { writeArtifactToDisk } from "../shell/files.js";
 
 type BuildkiteClient = {
   readonly requestJson: (options: {
     readonly path: string;
     readonly query?: Record<string, string | number | null>;
+    readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    readonly body?: unknown;
   }) => Promise<BuildkiteJsonResponse>;
   readonly requestBinary: (options: {
     readonly path: string;
@@ -157,6 +159,8 @@ const REQUIRED_SCOPES: ReadonlyArray<string> = [
   "read_artifacts",
 ];
 
+const JOBS_RETRY_REQUIRED_SCOPES: ReadonlyArray<string> = ["write_builds"];
+
 function mapAuthStatus(data: unknown): {
   readonly token: Record<string, unknown>;
   readonly user: Record<string, unknown> | null;
@@ -185,8 +189,11 @@ function mapAuthStatus(data: unknown): {
   };
 }
 
-function getMissingRequiredScopes(scopes: ReadonlyArray<string>): Array<string> {
-  return REQUIRED_SCOPES.filter((scope) => !scopes.includes(scope));
+function getMissingScopes(options: {
+  readonly grantedScopes: ReadonlyArray<string>;
+  readonly requiredScopes: ReadonlyArray<string>;
+}): Array<string> {
+  return options.requiredScopes.filter((scope) => !options.grantedScopes.includes(scope));
 }
 
 function getPaginationOrNull(options: {
@@ -314,7 +321,19 @@ export async function executeCommand(options: {
     }
 
     const status = mapAuthStatus(response.data);
-    const missingScopes = getMissingRequiredScopes(status.scopes);
+    const missingScopes = getMissingScopes({
+      grantedScopes: status.scopes,
+      requiredScopes: REQUIRED_SCOPES,
+    });
+    const missingRetryScopes = getMissingScopes({
+      grantedScopes: status.scopes,
+      requiredScopes: JOBS_RETRY_REQUIRED_SCOPES,
+    });
+
+    const warnings: Array<string> = [];
+    if (missingRetryScopes.length > 0) {
+      warnings.push(`jobs.retry requires token scope: ${missingRetryScopes.join(", ")}`);
+    }
 
     return {
       request,
@@ -323,6 +342,7 @@ export async function executeCommand(options: {
         grantedScopes: status.scopes.length,
         missingScopes,
         ready: missingScopes.length === 0,
+        warnings,
       },
       pagination: null,
       data: {
@@ -330,6 +350,13 @@ export async function executeCommand(options: {
         user: status.user,
         requiredScopes: [...REQUIRED_SCOPES],
         missingScopes,
+        capabilities: {
+          jobsRetry: {
+            requiredScopes: [...JOBS_RETRY_REQUIRED_SCOPES],
+            missingScopes: missingRetryScopes,
+            ready: missingRetryScopes.length === 0,
+          },
+        },
       },
     };
   }
@@ -437,6 +464,59 @@ export async function executeCommand(options: {
         lineCount: log.lineCount,
         truncated: log.truncated,
         content: log.content,
+      },
+    };
+  }
+
+  if (options.command.name === "jobs.retry") {
+    const accessTokenResponse = await options.client.requestJson({
+      path: "/v2/access-token",
+    });
+    const status = mapAuthStatus(accessTokenResponse.data);
+    const missingRetryScopes = getMissingScopes({
+      grantedScopes: status.scopes,
+      requiredScopes: JOBS_RETRY_REQUIRED_SCOPES,
+    });
+
+    if (missingRetryScopes.length > 0) {
+      throw new CliHttpError({
+        message: `failed to retry job: token missing required scope(s): ${missingRetryScopes.join(", ")}`,
+        status: 403,
+        code: "missing_scope",
+        details: {
+          command: "jobs.retry",
+          requiredScopes: [...JOBS_RETRY_REQUIRED_SCOPES],
+          missingScopes: missingRetryScopes,
+        },
+      });
+    }
+
+    const response = await options.client.requestJson({
+      path: `/v2/organizations/${options.command.args.org}/pipelines/${options.command.args.pipeline}/builds/${options.command.args.buildNumber}/jobs/${options.command.args.jobId}/retry`,
+      method: "PUT",
+    });
+
+    if (options.command.global.raw) {
+      return {
+        request,
+        summary: {},
+        pagination: null,
+        data: response.data,
+      };
+    }
+
+    const retriedJob = mapBuildJob(response.data);
+
+    return {
+      request,
+      summary: {
+        retried: true,
+        jobId: retriedJob.id,
+        state: retriedJob.state,
+      },
+      pagination: null,
+      data: {
+        job: retriedJob,
       },
     };
   }

@@ -66,12 +66,22 @@ export function createBuildkiteClient(token: string): {
   const baseUrl = "https://api.buildkite.com";
 
   async function requestJson(options: BuildkiteRequestOptions): Promise<BuildkiteJsonResponse> {
+    const method = options.method ?? "GET";
+    const hasBody = options.body !== undefined;
+
+    const headers: Record<string, string> = {
+      authorization: `Bearer ${token}`,
+      accept: "application/json",
+    };
+
+    if (hasBody) {
+      headers["content-type"] = "application/json";
+    }
+
     const response = await fetch(buildUrl(baseUrl, options), {
-      method: "GET",
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: "application/json",
-      },
+      method,
+      headers,
+      body: hasBody ? JSON.stringify(options.body) : undefined,
     });
 
     const requestId = getRequestId(response.headers);

@@ -4,6 +4,7 @@ export type CommandName =
   | "builds.list"
   | "builds.get"
   | "jobs.log.get"
+  | "jobs.retry"
   | "artifacts.list"
   | "artifacts.download"
   | "annotations.list";
@@ -63,6 +64,8 @@ export type Envelope<TData> = EnvelopeSuccess<TData> | EnvelopeFailure;
 export type BuildkiteRequestOptions = {
   readonly path: string;
   readonly query?: Record<string, string | number | null>;
+  readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  readonly body?: unknown;
 };
 
 export type BuildkiteJsonResponse = {
